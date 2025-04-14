@@ -1,0 +1,4 @@
+date,min_temp,max_temp,avg_temp,atm_pressure,wind_speed,downfall,eff_temp
+25.05.2016,25.4,7.0,17.7,,,0,
+26.05.2016,25.5,9.5,19.3,,3,0,18.5
+28.05.2016,27.9,10.6,20.8,,2,0,21.0
