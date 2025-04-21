@@ -3,96 +3,72 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Weather Trends</title>
+    <title>Weather Map Viewer</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <style>
         body {
             font-family: sans-serif;
             padding: 2em;
         }
 
-        svg {
-            width: 100%;
-            height: 400px;
+        #map {
+            height: 600px;
+            margin-bottom: 1em;
         }
 
-        #stationSelect {
-            margin-bottom: 1em;
+        #yearSlider {
+            width: 100%;
         }
     </style>
 </head>
 
 <body>
-    <h1>Weather Temperature Trends</h1>
-    <select id="stationSelect"></select>
-    <svg id="chart"></svg>
+    <h1>2D Temperature Map (2010 - 2020)</h1>
+    <input type="range" id="yearSlider" min="2010" max="2020" value="2010" />
+    <p>Year: <span id="yearLabel">2010</span></p>
+    <div id="map"></div>
 
     <script>
         const apiBase = "http://localhost:8000";
+        const yearSlider = document.getElementById("yearSlider");
+        const yearLabel = document.getElementById("yearLabel");
+        const map = L.map('map').setView([55.751244, 37.618423], 4); // Centered on Russia
 
-        async function loadStations() {
-            const res = await fetch(`${apiBase}/stations`);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data © OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = [];
+
+        async function loadAndDisplay(year) {
+            yearLabel.textContent = year;
+            const res = await fetch(`${apiBase}/mapdata/${year}`);
             const stations = await res.json();
-            const select = document.getElementById("stationSelect");
 
-            stations.forEach(station => {
-                const opt = document.createElement("option");
-                opt.value = station.id;
-                opt.text = station.name;
-                select.appendChild(opt);
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            stations.forEach(st => {
+                const temp = st.avg_temp;
+                const color = temp == null ? 'gray' : temp < 0 ? '#00f' : temp > 20 ? '#f00' : '#ffa500';
+                const marker = L.circleMarker([st.lat, st.lon], {
+                    radius: 6,
+                    color: color,
+                    fillOpacity: 0.8
+                }).bindPopup(`<b>${st.name}</b><br>Avg Temp: ${temp ?? 'N/A'} °C`);
+
+                marker.addTo(map);
+                markers.push(marker);
             });
-
-            select.addEventListener("change", () => {
-                loadData(select.value);
-            });
-
-            loadData(select.value); // Load first by default
         }
 
-        async function loadData(stationId) {
-            const res = await fetch(`${apiBase}/data/${stationId}`);
-            const data = await res.json();
-            data.forEach(d => {
-                d.date = new Date(d.date);
-                d.avg_temp = +d.avg_temp;
-            });
+        yearSlider.addEventListener("input", () => {
+            loadAndDisplay(yearSlider.value);
+        });
 
-            drawChart(data);
-        }
-
-        function drawChart(data) {
-            const svg = d3.select("#chart");
-            svg.selectAll("*").remove();
-
-            const margin = { top: 20, right: 30, bottom: 30, left: 50 },
-                width = svg.node().clientWidth - margin.left - margin.right,
-                height = svg.node().clientHeight - margin.top - margin.bottom;
-
-            const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const x = d3.scaleTime().domain(d3.extent(data, d => d.date)).range([0, width]);
-            const y = d3.scaleLinear().domain(d3.extent(data, d => d.avg_temp)).range([height, 0]);
-
-            const line = d3.line()
-                .x(d => x(d.date))
-                .y(d => y(d.avg_temp))
-                .curve(d3.curveMonotoneX);  // Smooth line
-
-            g.append("path")
-                .datum(data)
-                .attr("fill", "none")
-                .attr("stroke", "steelblue")
-                .attr("stroke-width", 2)
-                .attr("d", line);
-
-            g.append("g")
-                .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(x));
-
-            g.append("g").call(d3.axisLeft(y));
-        }
-
-        loadStations();
+        loadAndDisplay(yearSlider.value);
     </script>
 </body>
 
